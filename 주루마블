@@ -1,0 +1,643 @@
+/*주루마블*/
+
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <time.h>
+
+int print_menu(); // 메인 메뉴
+void game_info(); // 게임 설명
+void game_start(); // 게임 시작
+int roll_the_dice(); // 주사위를 굴리거나 게임을 포기
+void print_drink(int user_drink, int comp_drink, int pos); // USER와 COMP의 턴이 종료된 후 지금까지 각자 마신 술의 양 출력
+void print_map(int user_pos); // USER 말의 위치가 포함된 주루마블 보드를 출력
+char set_position(int user_pos, int pos); // print_map 함수에서 호출, USER의 말의 위치를 특정
+void play_juru(int user_pos, int* u_d, int* c_d); // 칸에 도착했을 때 그 칸의 기능을 실행
+void base(); // 일반 칸 도착 시 호출
+int normal(); // 시작 칸 도착 시 호출 
+void rest(); // 휴식 칸 도착 시 호출
+int chance(); // 찬스 칸 도착 시 호출
+int mission(); // 미션 칸 도착 시 호출
+int tsn(); // 삼육구 게임 시 호출
+int bskn(); // 배스킨라빈스 게임 시 호출
+int bskn_user(int num); // 베스킨라빈스 게임 USER 차례에 호출
+int bskn_comp(int num); // 베스킨라빈스 게임 COMPUTER 차례에 호출
+
+
+int main()
+{
+	srand(time(NULL));
+	int x;
+	while (1)
+	{
+		x = print_menu(); // 메인 메뉴에서 플레이어가 선택한 번호
+		system("cls");
+		if (x == 1) // 1. 게임 설명
+			game_info();
+		else if (x == 2) // 2. 게임 시작
+			game_start();
+		else if (x == 3) // 3. 게임 종료
+			break; // while문 탈출
+	}
+
+	printf("프로그램을 종료합니다...");
+	return 0;
+}
+
+int print_menu()
+{
+	int a;
+	printf("[주루마블]\n");
+	printf("=========================\n");
+	printf("     1. 게임 설명\n");
+	printf("     2. 게임 시작\n");
+	printf("     3. 게임 종료\n");
+	printf("=========================\n");
+	printf("입력: ");
+	scanf("%d", &a);
+
+	switch (a)
+	{
+	case 1:
+		system("cls");
+		return 1;
+	case 2:
+		system("cls");
+		return 2;
+	case 3:
+		system("cls");
+		return 3;
+	default:
+		system("cls");
+		printf("메뉴를 다시 입력하세요.\n");
+		print_menu(); // 재귀함수 이용하여 1, 2, 3 중 하나를 입력할 때까지 계속 입력받음
+	}
+}
+
+void game_info()
+{
+	int a;
+	system("cls");
+	printf("=============================== 주루마블 게임 설명 ===============================\n");
+	printf("1. USER는 매턴 주사위를 던진다. 주사위를 던질 때 주사위의 눈은 플레이어가 결정한다\n");
+	printf("2. COMPUTER는 주사위를 던지지 않으며 매턴 1잔의 술을 마신다.\n");
+	printf("3. USER와 COMPUTER의 주량은 소주 2병(14잔)이며, 14잔을 먼저 마신 쪽이 패배한다.\n");
+	printf("4. 보드는 5가지 칸으로 이루어져있으며 USER는 각 칸의 요구사항을 만족시켜야한다.\n");
+	printf("==================================================================================\n");
+	printf("메인 메뉴로 돌아가기 (-1): ");
+	scanf("%d", &a);
+	if (a == -1)
+		system("cls"); // game_info 종료 시 자연스럽게 main함수의 while문 반복, 메인 메뉴 출력됨
+}
+
+void game_start()
+{
+	printf("[주루마블 게임]\n");
+	printf("=========================================\n");
+	printf("+---------+---------+---------+---------+\n");
+	printf("|  미션   |  찬스   |  일반   |  휴식   |\n");
+	printf("+---------+---------+---------+---------+\n");
+	printf("|  일반   |                   |  일반   |\n");
+	printf("+---------+                   +---------+\n");
+	printf("|  일반   |                   |  일반   |\n");
+	printf("+---------+---------+---------+---------+\n");
+	printf("|  시작 O |  일반   |  찬스   |  미션   |\n");
+	printf("+---------+---------+---------+---------+\n");
+	printf("=========================================\n");
+	printf("[USER - 0] (0/14)\n");
+	printf("□□□□□□□□□□□□□□\n");
+	printf("[COMP - 0] (0/14)\n");
+	printf("□□□□□□□□□□□□□□\n");
+	printf("=========================================\n");
+	int round = 1; // 몇 라운드인지
+	int dice = 0; // 굴려서 나온 주사위 눈
+	int pos = 0; // 현재 USER의 위치
+	int tot_move = 0; // 지금까지 굴린 주사위 눈의 합
+	int user_drink = 0; // 지금까지 USER가 마신 술의 합
+	int comp_drink = 0; // 지금까지 COMP가 마신 술의 합
+	int x; // 메인 메뉴로 돌아가기 위해 입력받는 정수
+
+	while (1)
+	{
+		printf("주사위를 굴리시겠습니까? (0: 굴림, -1: 게임포기): ");
+
+		dice = roll_the_dice();
+		if (dice > 0) // roll_the_dice 는 메인 메뉴로 돌아갈 때 -1을 return 하기 때문에 이 경우를 제외하고 계산
+			tot_move += dice;
+		else // roll_the_dice 가 -1을 return 한 경우 
+			break; // game_start 함수 종료, main 함수의 while문 반복, 메인 메뉴 출력
+		pos = tot_move % 12; // 게임판의 칸이 12개이므로 tot_move를 12로 나눈 나머지가 현재 말의 위치
+
+		system("cls");
+		printf("=========================================\n");
+		printf("▶▶▶ ROUND %d ▶▶▶▶▶▶▶▶▶▶▶▶▶\n", round);
+		round++; // 현재 라운드 출력 후 +1
+		printf("=========================================\n");
+		printf("[USER's Turn]\n");
+		printf("-----------------------------------------\n");
+		printf("주사위 눈: %d\n", dice);
+
+		print_map(pos); // 현재 말의 위치를 입력받아 게임판 출력
+
+		play_juru(pos, &user_drink, &comp_drink); // 현재 말의 위치를 입력받아 칸의 종류 파악. 결과에 따라 마시는 술의 양 반영.
+
+		if ((user_drink < 14) && (comp_drink < 14)) // USER와 COMPUTER가 마신 술이 14잔 미만일 경우
+		{
+			printf("[COMPUTER's Turn]\n");
+			printf("-----------------------------------------\n");
+			printf("COMPUTER가 1잔 마시게 되었습니다.\n");
+			printf("\n");
+			comp_drink += 1; // COMPUTER는 1잔의 술을 마심			
+		}
+
+		print_drink(user_drink, comp_drink, pos); // USER 말의 현재 위치, USER와 COMPUTER가 지금까지 마신 술의 양 출력
+
+		if ((user_drink == 14) || (comp_drink == 14)) // 둘 중 하나가 14잔을 마셨을 경우 게임 종료
+		{
+			printf("메인 메뉴로 돌아가기(-1): ");
+			scanf("%d", &x);
+			if (x == -1)
+				system("cls");
+			break;
+		}
+	}
+	
+}
+
+int roll_the_dice()
+{
+	int a;
+	scanf("%d", &a);
+
+	switch (a)
+	{
+	case -1: // -1 입력 시 메인 메뉴로
+		system("cls");
+		break;
+	case 0: // 0 입력 시 1~6 사이 무작위 숫자를 주사위 눈으로 사용
+		system("cls");
+		return rand() % 6 + 1;
+	// 주사위 눈 직접 입력
+	case 1: 
+		system("cls");
+		return 1;
+	case 2:
+		system("cls");
+		return 2;
+	case 3:
+		system("cls");
+		return 3;
+	case 4:
+		system("cls");
+		return 4;;
+	case 5:
+		system("cls");
+		return 5;
+	case 6:
+		system("cls");
+		return 6;
+	default: // -1~6 사이의 정수가 아닌 다른 수 입력 시 재귀함수 이용해 다시 입력받음
+		system("cls");
+		printf("주사위를 굴리시겠습니까? (0: 굴림, -1: 게임포기): ");
+		roll_the_dice();
+	}
+}
+
+char set_position(int user_pos, int position)
+{
+	if (user_pos == position) // 현재 USER 말의 위치가 게임판의 특정 위치와 같다면
+		return 'O'; // O 출력
+	else // 다르다면
+		return ' '; // 공백 출력
+}
+
+void print_map(int pos) // set_position 함수 호출하여 현재 USER 말의 위치를 게임판에 'O'로 표시 
+{
+	char a, b, c, d, e, f, g, h, i, j, k, l;
+
+	a = set_position(pos, 0);
+	b = set_position(pos, 1);
+	c = set_position(pos, 2);
+	d = set_position(pos, 3);
+	e = set_position(pos, 4);
+	f = set_position(pos, 5);
+	g = set_position(pos, 6);
+	h = set_position(pos, 7);
+	i = set_position(pos, 8);
+	j = set_position(pos, 9);
+	k = set_position(pos, 10);
+	l = set_position(pos, 11);
+
+	printf("\n");
+	printf("+---------+---------+---------+---------+\n");
+	printf("|  미션 %c |  찬스 %c |  일반 %c |  휴식 %c |\n", j, i, h, g);
+	printf("+---------+---------+---------+---------+\n");
+	printf("|  일반 %c |                   |  일반 %c |\n", k, f);
+	printf("+---------+                   +---------+\n");
+	printf("|  일반 %c |                   |  일반 %c |\n", l, e);
+	printf("+---------+---------+---------+---------+\n");
+	printf("|  시작 %c |  일반 %c |  찬스 %c |  미션 %c |\n", a, b, c, d);
+	printf("+---------+---------+---------+---------+\n");
+	printf("\n");
+}
+
+void print_drink(user_drink, comp_drink, pos)
+{
+	int a, b;
+	if ((user_drink == 14) || (comp_drink == 14)) // 둘 중 하나가 14잔을 마셨을 경우
+		printf("게임이 종료되었습니다.\n"); // 게임 종료 메시지 출력
+	// 주량 14잔 중 마신 것은 ■, 아직 마실 수 있는 것은 □로 표현 
+	printf("=========================================\n");
+	printf("[USER - %d] (%d/14)\n", pos, user_drink);
+	for (a = 0; a < user_drink; a++)
+		printf("■");
+	for (b = 0; b < (14 - user_drink); b++)
+		printf("□");
+	printf("\n");
+
+	printf("[COMP - 0] (%d/14)\n", comp_drink);
+	for (a = 0; a < comp_drink; a++)
+		printf("■");
+	for (b = 0; b < (14 - comp_drink); b++)
+		printf("□");
+	printf("\n");
+	printf("=========================================\n");
+	if (user_drink == 14) // USER가 14잔을 먼저 마셨을 경우
+		printf("* 결과 COMPUTER가 승리하였습니다.\n"); // COMPUTER가 승리
+	else if (comp_drink == 14) // COMPUTER가 14잔을 먼저 마셨을 경우
+		printf("* 결과 USER가 승리하였습니다.\n"); // USER가 승리
+	// 144줄 코드에 의해 비기는 경우는 생각하지 않아도 됨.]
+}
+
+void play_juru(int user_pos, int* u_d, int* c_d) // USER 말의 위치 입력받아 칸의 기능 실행, 마신 술의 양 반영
+{
+	int a;
+	switch (user_pos)
+	{
+	case 0:
+		base(); // 시작칸에서는 아무것도 하지 않는다.
+		break;
+	case 1:
+	case 4:
+	case 5:
+	case 7:
+	case 10:
+	case 11:
+		normal(); // 일반칸에서는 USER가 한 잔 마신다.
+		if (*u_d < 14)
+			*u_d += 1;
+		else
+			*u_d = 14;
+		break;
+	case 2:
+	case 8:
+		a = chance(); // 찬스칸에서는 3잔 마시거나 2잔 토해낸다.
+		if (a == 6)
+		{
+			if (*u_d <= 11)
+				*u_d += 3;
+			else if (*u_d > 11)
+				*u_d = 14;
+		}
+		else if (a == 7)
+		{
+			if (*u_d >= 2)
+				*u_d -= 2;
+			else if (*u_d < 2)
+				*u_d = 0;
+		}
+		break;
+	case 3:
+	case 9:
+		a = mission(); // 미션칸에서는 USER 또는 COMPUTER가 4잔 마신다.
+		if (a == 2)
+		{
+			if (*c_d <= 10)
+				*c_d += 4;
+			else if (*c_d > 10)
+				*c_d = 14;
+		}
+		else if (a == 3)
+		{
+			if (*u_d <= 10)
+				*u_d += 4;
+			else if (*u_d > 10)
+				*u_d = 14;
+		}
+		break;
+	case 6:
+		rest(); // 휴식칸에서는 아무것도 하지 않는다.
+		break;
+	}
+}
+
+void base() 
+{
+	printf("시작 칸에 도착하였습니다.\n");
+	printf("이번 턴에는 아무것도 하지 않습니다.\n"); // 시작칸의 기능 출력
+	printf("\n");
+}
+
+int normal()
+{
+	printf("일반 칸에 도착하였습니다.\n");
+	printf("USER가 1잔 마시게 되었습니다.\n"); // 일반칸의 기능 출력
+	printf("\n");
+	return 1;
+}
+
+void rest()
+{
+	printf("휴식 칸에 도착하였습니다.\n");
+	printf("이번 턴에는 아무것도 하지 않습니다.\n"); // 휴식칸의 기능 출력
+	printf("\n");
+}
+
+int chance()
+{
+	int a;
+	int num = 1;
+
+	a = rand() % 2; // a의 값이 랜덤하게 정해짐에 따라 '세 잔 더'나 '여명 808' 중 선택
+
+	switch (a)
+	{
+	case 0:
+		printf("'세 잔 더!' 카드를 뽑았습니다.\n");
+		printf("USER가 3잔 마시게 되었습니다.\n");
+		printf("\n");
+		return 6; // play_juru 함수에서 user_drink, comp_drink에 접근하기 위해 필요한 return 값
+	case 1:
+		printf("'여명 808' 카드를 뽑았습니다.\n");
+		printf("USER가 -2잔 마시게 되었습니다.\n");
+		printf("\n");
+		return 7; // play_juru 함수에서 user_drink, comp_drink에 접근하기 위해 필요한 return 값
+	}
+}
+
+int mission() 
+{
+	printf("미션 칸에 도착하였습니다.\n");
+	int a;
+	a = rand() % 2; // a의 값이 랜덤하게 정해짐에 따라 게임 선택
+
+	switch (a)
+	{
+	case 0:
+		printf("369 게임이 선택되었습니다.\n");
+		printf("-----------------------------------------\n");
+		printf("★★★★★      369 게임      ★★★★★\n");
+		printf("-----------------------------------------\n");
+		return tsn(); // 369 게임 함수 호출 ('t'hree 's'ix 'n'ine)
+		printf("\n");
+		break;
+	case 1:
+		printf("베스킨라빈스 게임이 선택되었습니다.\n");
+		printf("-----------------------------------------\n");
+		printf("★★★★★  베스킨라빈스 게임  ★★★★★\n");
+		printf("-----------------------------------------\n");
+		return bskn(); // 베스킨라빈스 게임 함수 호출
+		printf("\n");
+		break;
+	}
+}
+int tsn()
+{
+	int a;
+	int input;
+	int num = 1;
+	
+	a = rand() % 2; // a의 값이 랜덤하게 정해짐에 따라 선공을 결정
+
+	switch (a)
+	{
+	case 0: // 컴퓨터가 선공
+		while (1)
+		{
+			switch (num) // 369 게임의 룰에 맞게 숫자 출력. COMPUTER는 짝수를 부를 일이 없음을 고려한다.
+			{
+			case 1:
+				printf("COMP >> 1\n");
+				num++;
+				break;
+			case 3:
+				printf("COMP >> 0\n");
+				num++;
+				break;
+			case 5:
+				printf("COMP >> 5\n");
+				num++;
+				break;
+			case 7:
+				printf("COMP >> 7\n");
+				num++;
+				break;
+			case 9:
+				printf("COMP >> 0\n");
+				num++;
+				break;
+			case 11:
+				printf("COMP >> 11\n");
+				num++;
+				break;
+			case 13:
+				printf("COMP >> 0\n");
+				num++;
+				break;
+			case 15:
+				printf("COMP >> 15\n");
+				num++;
+				break;
+			case 17:
+				printf("COMP >> 17\n");
+				num++;
+				break;
+			case 19:
+				printf("COMP >> 0\n");
+				num++;
+				break;
+			case 21: // USER가 21까지 틀리지 않았다면
+				printf("COMP >> 21\n");
+				printf("-----------------------------------------\n");
+				printf("USER가 승리하였습니다.\n"); // USER가 승리
+				printf("COMPUTER가 4잔 마시게 되었습니다.\n");
+				printf("\n");
+				return 2; // play_juru 함수에서 user_drink, comp_drink에 접근하기 위해 필요한 return 값
+				break;
+			}
+			if (num == 21) // 21을 부르면
+				break; // 게임 종료
+
+			printf("USER >> "); // USER가 수를 입력
+			scanf("%d", &input);
+			// 369 게임의 룰에 맞게 입력했을 때만 턴을 COMPUTER에게 넘김
+			if (input == num && (num != 3 && num != 6 && num != 9 && num != 10 && num != 13 && num != 16 && num != 19 && num != 20))
+				num++;
+			else if (input == 0 && (num == 3 || num == 6 || num == 9 || num == 10 || num == 13 || num == 16 || num == 19 || num == 20))
+				num++;
+			else // 틀리게 입력했을 경우 
+			{
+				printf("-----------------------------------------\n");
+				printf("COMPUTER가 승리하였습니다\n"); // COMPUTER가 승리
+				printf("USER가 4잔 마시게 되었습니다.\n");
+				printf("\n");
+				return 3; // play_juru 함수에서 user_drink, comp_drink에 접근하기 위해 필요한 return 값
+				break;
+			}
+		}
+	case 1: // USER가 선공
+		// 코드의 구조는 case 0 일때와 동일하다. COMPUTER는 홀수를 부를 일이 없음을 고려한다.
+		while (1)
+		{
+			printf("USER >> ");
+			scanf("%d", &input);
+			if (input == num && (num != 3 && num != 6 && num != 9 && num != 10 && num != 13 && num != 16 && num != 19 && num != 20 && num != 21))
+				num++;
+			else if (input == 0 && (num == 3 || num == 6 || num == 9 || num == 10 || num == 13 || num == 16 || num == 19 || num == 20))
+				num++;
+			else if (input == 21 && num == 21)
+			{
+				printf("-----------------------------------------\n");
+				printf("USER가 승리하였습니다.\n");
+				printf("COMPUTER가 4잔 마시게 되었습니다.\n");
+				printf("\n");
+				return 2;
+				break;
+			}
+			else
+			{
+				printf("-----------------------------------------\n");
+				printf("COMPUTER가 승리하였습니다\n");
+				printf("USER가 4잔 마시게 되었습니다.\n");
+				printf("\n");
+				return 3;
+				break;
+			}
+
+			switch (num)
+			{
+			case 2:
+				printf("COMP >> 2\n");
+				num++;
+				break;
+			case 4:
+				printf("COMP >> 4\n");
+				num++;
+				break;
+			case 6:
+				printf("COMP >> 0\n");
+				num++;
+				break;
+			case 8:
+				printf("COMP >> 8\n");
+				num++;
+				break;
+			case 10:
+				printf("COMP >> 0\n");
+				num++;
+				break;
+			case 12:
+				printf("COMP >> 12\n");
+				num++;
+				break;
+			case 14:
+				printf("COMP >> 14\n");
+				num++;
+				break;
+			case 16:
+				printf("COMP >> 0\n");
+				num++;
+				break;
+			case 18:
+				printf("COMP >> 18\n");
+				num++;
+				break;
+			case 20:
+				printf("COMP >> 0\n");
+				num++;
+				break;
+			}
+		}
+	}
+}
+
+int bskn()
+{
+	int num = 0; // USER와 COMPUTER 차례에 마지막으로 불린 수를 저장
+
+	int a = rand() % 2; // a값이 랜덤하게 정해짐에 따라 선공 결정
+
+	switch (a)
+	{
+	case 0: // USER 선공
+		return bskn_user(0); // play_juru 함수에서 user_drink, comp_drink에 접근하기 위해 필요한 return 값
+	case 1: // COMPUTER 선공
+		return bskn_comp(0); // play_juru 함수에서 user_drink, comp_drink에 접근하기 위해 필요한 return 값
+	}
+}
+
+
+
+int bskn_user(int num)
+{
+	int n = 0;
+	int input;
+	printf("USER >> ");
+	scanf("%d", &input);
+	if (((input + num) > 31) || !((0 < input) && (input < 4))) // 조건에 맞지 않는 정수 입력 시 
+	{
+		printf("WRONG INPUT!\n"); // 오류 메시지 출력 뒤
+		bskn_user(num); // 재귀함수 통해 다시 입력받음
+	}
+	else if ((0 < input) && (input < 4)) // 조건에 맞는 정수 입력 시
+	{
+		while (n < input) // 입력한 숫자만큼 num 다음의 자연수를 연속하여 출력
+		{
+			num++;
+			printf("%d ", num);
+			n++;
+		}
+		printf("\n");
+
+		if (num == 31) // num이 31이 되면 USER가 패배
+		{
+			printf("-----------------------------------------\n");
+			printf("COMPUTER가 승리하였습니다.\n");
+			printf("USER가 4잔 마시게 되었습니다.\n");
+			printf("\n");
+			return 3; // play_juru 함수에서 user_drink, comp_drink에 접근하기 위해 필요한 return 값
+		}
+		return bskn_comp(num); // 저장된 num을 bskn_comp로 전달
+	}
+}
+
+int bskn_comp(int num)
+{
+	int n = 0;
+	int input = 0; 
+	// 1, 2, 3 중 무작위 숫자를 선택한다. 이때 31을 넘어가는 수를 부르는 일은 없도록 한다.
+	if (num < 29)
+		input = rand() % 3 + 1;
+	else if (num == 29)
+		input = rand() % 2 + 1;
+	else if (num == 30)
+		input = 1;
+	printf("COMP >> %d\n", input);
+	while (n < input) // 선택한 숫자만큼 num 다음의 자연수를 연속하여 출력
+	{
+		num++;
+		printf("%d ", num);
+		n++;
+	}
+	printf("\n");
+	if (num == 31) // num이 31이 되면 COMPUTER 패배
+	{
+		printf("-----------------------------------------\n");
+		printf("USER가 승리하였습니다.\n");
+		printf("COMPUTER가 4잔 마시게 되었습니다.\n");
+		printf("\n");
+		return 2; // play_juru 함수에서 user_drink, comp_drink에 접근하기 위해 필요한 return 값
+	}
+	return bskn_user(num); // 저장된 num의 값을 bskn_user로 전달
+}
